@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<services>
+	<!-- 定义一个服务接口  -->
+	<service className="com.sfpay.web.service.TestService" url="http://localhost:8080/sypay-web/testService" startDate="20140909" endDate="20141130">
+		<!-- 一个服务接口下可以暴露多个方法，方法才是提供服务的最小单位 -->
+		<method name="serviceTest" call="test" version="1.0" desc="顺手付服务1" startDate="20140909" endDate="20141030">
+			<!-- 方法的传入参数，如果没有传入参数，可以没有该节点，注意，param节点的顺序和方法的传入顺序需一致 -->
+			<!-- 有attribute子节点的param的节点不需要有name属性 -->
+			<param type="bean1">
+				<!-- attribute和给外部暴露的传入参数一一对应，如果param的type是基本类型，则可以不需要attribute子节点 -->
+				<!-- name为公布给外部的参数名称，match为匹配到param的Field的XPath -->
+				<attribute call="tp1" match="age" />
+				<attribute call="tp2" match="testBean4.love" />
+			</param>
+			<param type="bean2">
+				<attribute call="tp3" match="date" />
+				<attribute match="girl" default="mylove"/>
+			</param>
+			<param call="tp4" type="int"/>
+			<param  type="java.lang.String" default="abcdefg"/>
+			<!-- 方法的返回值，如果没有返回值，可以没有该节点 -->
+			<return type="bean3" />
+		</method>
+	</service>
+	<service className="com.sfpay.web.service.TestService1" url="http://localhost:8080/sypay-web/testService1" version="1.0" startDate="20140909" endDate="20141130">
+		<method name="testService1" call="test1" version="1.0" desc="顺手付服务2">
+			<param type="bean5">
+				<attribute call="tp6" match="date" />
+				<attribute call="tp7" match="future" />
+			</param>
+			<return type="bean6" />
+		</method>
+	</service>
+	
+	<service className="com.sfpay.organ.service.IOrgTypeCodeService" url="http://localhost:8080/oms-server/hessian/orgTypeCodeService" version="1.0" startDate="20140909" endDate="20141130">
+		<method name="queryOrgTypeCode" call="orgtypecodequery" version="1.0" desc="顺手机构类型代码查询">
+			<param type="orgTypeCode">
+				<attribute call="typecode" match="typeCode" />
+			</param>
+		</method>
+	</service>
+	
+
+	<!-- 可以给class起个别名，便于在method中引用，这里也可以用来添加其他需要引入的class -->
+	<refer name="bean1" className="com.sfpay.web.bean.TestBean1" />
+	<refer name="bean2" className="com.sfpay.web.bean.TestBean2" />
+	<refer name="bean3" className="com.sfpay.web.bean.TestBean3" />
+	<refer name="bean4" className="com.sfpay.web.bean.TestBean4" />
+	<refer name="bean5" className="com.sfpay.web.bean.TestBean5" />
+	<refer name="bean6" className="com.sfpay.web.bean.TestBean6" />
+	
+	<refer name="orgTypeCode" className="com.sfpay.organ.domain.OrgTypeCode" />
+	
+</services>

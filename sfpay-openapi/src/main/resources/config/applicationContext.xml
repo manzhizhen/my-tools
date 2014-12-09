@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:p="http://www.springframework.org/schema/p"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans 
+         http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+         http://www.springframework.org/schema/context
+         http://www.springframework.org/schema/context/spring-context-3.0.xsd">
+
+	<context:component-scan base-package="com.sfpay.openapi" />	
+	
+	<bean id="placeholderConfigHessian"
+		class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer">
+		<property name="locations">
+			<list>
+				<value>classpath:properties/*.properties</value>
+			</list>
+		</property>
+	</bean>
+	
+<!--<bean name="updateConfigJob" class="org.springframework.scheduling.quartz.JobDetailBean"
+		p:jobClass="com.sypay.openapi.config.ServiceRegisterConfig" /> -->
+	<!-- 定义一个JobDetail -->
+	<bean name="updateConfigJob" class="org.springframework.scheduling.quartz.MethodInvokingJobDetailFactoryBean"
+		p:targetObject-ref="serviceRegisterConfig" 
+		p:targetMethod="updateServiceRegister"
+		p:concurrent="true"
+	/>
+	<!-- 定义一个Trigger -->
+	<bean id="updateConfigTrigger" class="org.springframework.scheduling.quartz.SimpleTriggerFactoryBean"
+		p:jobDetail-ref="updateConfigJob"
+		p:startDelay="30000"
+		p:repeatInterval="6000000"
+		p:repeatCount="99999"
+	/>
+	
+	<bean id="scheduler" class="org.springframework.scheduling.quartz.SchedulerFactoryBean"
+		p:triggers-ref="updateConfigTrigger"
+	/>
+	
+	<!-- 配置数据源 -->
+	<bean id="dataSource" class="com.mchange.v2.c3p0.ComboPooledDataSource" >
+		<property name="driverClass" value="${jdbc.driver}"></property>
+		<property name="jdbcUrl" value="${jdbc.jdbcUrl}"></property>
+		<property name="user" value="${jdbc.user}"></property>
+		<property name="password" value="${jdbc.password}"></property>
+		<property name="minPoolSize" value="${jdbc.minPoolSize}"></property>
+		<property name="maxPoolSize" value="${jdbc.maxPoolSize}"></property>
+		<property name="maxIdleTime" value="${jdbc.maxIdleTime}"></property>
+		<property name="checkoutTimeout" value="${jdbc.checkoutTimeout}"></property>
+		<property name="acquireIncrement" value="${jdbc.acquireIncrement}"></property>
+        <property name="acquireRetryAttempts" value="${jdbc.acquireRetryAttempts}"></property>
+        <property name="acquireRetryDelay" value="${jdbc.acquireRetryDelay}"></property>
+        <property name="breakAfterAcquireFailure" value="${jdbc.breakAfterAcquireFailure}"></property> 
+	</bean>
+	
+	<!-- OMS Hessian 配置 -->
+	<bean id="userService" class="org.springframework.remoting.caucho.HessianProxyFactoryBean">  
+        <!-- 请求代理Servlet路径 -->          
+        <property name="serviceUrl" value="${OMS_SERVER}userService" />  
+        <!-- 接口定义 -->  
+        <property name="serviceInterface" value="com.sfpay.um.service.IUserService" />  
+    </bean>  
+</beans>

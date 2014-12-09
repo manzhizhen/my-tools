@@ -1,0 +1,6 @@
+#Thu Oct 30 09:08:30 CST 2014
+eclipse.preferences.version=1
+encoding//src/main/webapp/WEB-INF/view/login/login.jsp=UTF-8
+encoding//src/main/webapp/WEB-INF/view/login/login_fail.jsp=UTF-8
+encoding//src/main/webapp/WEB-INF/view/login/login_success.jsp=UTF-8
+encoding//src/main/webapp/WEB-INF/view/login/oauth_error.jsp=UTF-8

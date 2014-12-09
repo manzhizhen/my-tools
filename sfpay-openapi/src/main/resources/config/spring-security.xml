@@ -1,0 +1,248 @@
+<?xml version="1.0" encoding="UTF-8"?>  
+<beans:beans xmlns="http://www.springframework.org/schema/security"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"    
+    xmlns:beans="http://www.springframework.org/schema/beans"    
+    xmlns:oauth2="http://www.springframework.org/schema/security/oauth2"
+    xmlns:mvc="http://www.springframework.org/schema/mvc" 
+    xsi:schemaLocation="http://www.springframework.org/schema/beans    
+            http://www.springframework.org/schema/beans/spring-beans-4.0.xsd   
+            http://www.springframework.org/schema/security    
+            http://www.springframework.org/schema/security/spring-security-3.2.xsd
+            http://www.springframework.org/schema/security/oauth2
+    		http://www.springframework.org/schema/security/spring-security-oauth2-1.0.xsd
+    		http://www.springframework.org/schema/mvc 
+          	http://www.springframework.org/schema/mvc/spring-mvc-4.0.xsd
+    		">
+       
+    <mvc:annotation-driven />
+	<mvc:default-servlet-handler />
+       
+    <!-- auto-config设置为true将自动配置几种常用的权限控制机制，包括form, anonymous, rememberMe -->
+   	<http pattern="/login/**" auto-config="true" use-expressions="true" access-denied-page="/deied" 
+   		authentication-manager-ref="authenticationManager">  
+        <!-- 设置所有用户都可以访问 -->
+		<intercept-url pattern="/login" access="permitAll"/>
+        <intercept-url pattern="/login/result" access="permitAll"/>
+        
+        <form-login
+        		login-page="/login" 
+        		default-target-url="/index.jsp"
+        		authentication-failure-url="/login/result?error=true"    
+                login-processing-url="/login/submit"
+                />  
+               
+        <logout invalidate-session="true"    
+                logout-success-url="/auth/loginoutsuccess"    
+                logout-url="/auth/logout"/> 
+                
+         <!-- 表达式 说明 
+			hasRole([role]) 返回 true 如果当前主体拥有特定角色。 
+			hasAnyRole([role1,role2]) 返回 true 如果当前主体拥有任何一个提供的角色 （使用逗号分隔的字符串队列） 
+			principal 允许直接访问主体对象，表示当前用户 
+			authentication 允许直接访问当前 Authentication对象 从SecurityContext中获得 
+			permitAll 一直返回true 
+			denyAll 一直返回false 
+			isAnonymous() 如果用户是一个匿名登录的用户 就会返回 true 
+			isRememberMe() 如果用户是通过remember-me 登录的用户 就会返回 true 
+			isAuthenticated() 如果用户不是匿名用户就会返回true 
+			isFullyAuthenticated() 如果用户不是通过匿名也不是通过remember-me登录的用户时， 就会返回true。  -->
+    </http>
+    
+    <http pattern="/oauth/token" create-session="stateless"
+		authentication-manager-ref="oauth2AuthenticationManager"
+		entry-point-ref="oauth2AuthenticationEntryPoint">
+		<intercept-url pattern="/oauth/token" access="IS_AUTHENTICATED_FULLY" />
+		<anonymous enabled="false" />
+		<http-basic entry-point-ref="oauth2AuthenticationEntryPoint" />
+
+		<custom-filter ref="clientCredentialsTokenEndpointFilter"
+			before="BASIC_AUTH_FILTER" />
+		<access-denied-handler ref="oauth2AccessDeniedHandler" />
+	</http>
+	
+	<http pattern="/oms/**" create-session="never" authentication-manager-ref="oauth2AuthenticationManager" 
+    	entry-point-ref="oauth2AuthenticationEntryPoint" access-decision-manager-ref="oauth2AccessDecisionManager">
+    	<intercept-url pattern="/oms/orgtypecodequery" access="IS_AUTHENTICATED_FULLY" />
+        <anonymous enabled="false"/>
+        <custom-filter ref="resourceServer" before="PRE_AUTH_FILTER"/>
+        <access-denied-handler ref="oauth2AccessDeniedHandler"/>
+    </http>
+    
+<!-- 如果配置为IS_AUTHENTICATED_FULLY，那么只有AuthenticationTrustResolver的isAnonymous()和isRememberMe()都返回false时才能通过验证。
+如果配置为IS_AUTHENTICATED_REMEMBERED，那么会在AuthenticationTrustResolver的isAnonymous()返回false时通过验证。
+如果配置为IS_AUTHENTICATED_ANONYMOUSLY，就可以在AuthenticationTrustResolver的isAnonymous()和isRememberMe()两个方法返回任意值时都可以通过验证。 --> 
+    
+    <!--unity resource server filter-->
+    <oauth2:resource-server id="resourceServer" resource-id="resource" token-services-ref="tokenServices"/>
+     
+	<beans:bean id="oauth2ClientDetailsUserService"  
+		class="org.springframework.security.oauth2.provider.client.ClientDetailsUserDetailsService">  
+		<beans:constructor-arg ref="clientDetailsService"/>  
+	</beans:bean> 
+	
+<!-- 	<oauth2:resource-server id="ServerResourceServer"
+		resource-id="SERVER_RESOURCE_ID" token-services-ref="tokenServices" /> -->
+    
+    
+    <!-- 对密码进行MD5编码 -->  
+	<beans:bean class="org.springframework.security.authentication.encoding.Md5PasswordEncoder" id="passwordEncoder" />
+    
+    <!-- 客户端的认证服务器 -->
+	<authentication-manager id="oauth2AuthenticationManager">  
+		<authentication-provider user-service-ref="oauth2ClientDetailsUserService">
+			<!-- <password-encoder ref="passwordEncoder" /> -->
+		</authentication-provider>  
+	</authentication-manager>
+	<!-- 用户信息的认证服务器 -->
+	<authentication-manager alias="authenticationManager">  
+		<authentication-provider user-service-ref="sfpayUserDetailsService">
+			<!-- <password-encoder hash="md5" /> -->
+			<password-encoder ref="sfpayMd5PasswordEncoder">
+				<salt-source user-property="username" />
+			</password-encoder>
+		</authentication-provider>
+<!-- 		<authentication-provider>
+			<user-service>
+				<user name="admin" password="admin" authorities="ROLE_ADMIN"/>
+				<user name="marissa" password="koala" authorities="ROLE_USER"/>
+			</user-service>
+		</authentication-provider> -->
+	</authentication-manager>
+    
+    <!-- 令牌数据库配置 -->
+	<beans:bean id="tokenStore" class="org.springframework.security.oauth2.provider.token.store.JdbcTokenStore">  
+    	<beans:constructor-arg index="0" ref="dataSource"/>
+    </beans:bean>
+    <!-- <beans:bean id="tokenStore"
+		class="org.springframework.security.oauth2.provider.token.store.InMemoryTokenStore" /> -->
+		
+    <!-- 令牌服务TokenServices配置 -->
+	<beans:bean id="tokenServices" class="org.springframework.security.oauth2.provider.token.DefaultTokenServices">  
+    	<beans:property name="tokenStore" ref="tokenStore"/>  
+    	<beans:property name="supportRefreshToken" value="true"/>  
+        <beans:property name="accessTokenValiditySeconds" value="6"/>
+    	<beans:property name="refreshTokenValiditySeconds" value="360"/>
+	</beans:bean>
+    
+    <!-- OAuth2授权端点配置  -->
+	<beans:bean id="oauth2AuthenticationEntryPoint"  
+		class="org.springframework.security.oauth2.provider.error.OAuth2AuthenticationEntryPoint"/>
+<!-- 	<beans:bean id="oauth2AuthenticationEntryPoint"  
+		class="org.springframework.security.web.authentication.www.BasicAuthenticationEntryPoint">
+		<beans:property name="realmName" value="manzhizhen" />
+	</beans:bean> -->
+	
+<!-- 	<beans:bean id="approvalStore" class="org.springframework.security.oauth2.provider.approval.TokenApprovalStore">
+		<beans:property name="tokenStore" ref="tokenStore" />
+	</beans:bean> -->
+	<!-- 使用OAuth认证服务器用户 -->
+<!-- 	<beans:bean id="requestFactory" class="org.springframework.security.oauth2.provider.request.DefaultOAuth2RequestFactory">
+		<beans:constructor-arg index="0" ref="clientDetailsService" />
+	</beans:bean> -->
+	
+ 	<!-- OAuth2AccessDeniedHandler配置, 实现AccessDeniedHandler接口 -->
+	<beans:bean id="oauth2AccessDeniedHandler"  
+		class="org.springframework.security.oauth2.provider.error.OAuth2AccessDeniedHandler"/>
+
+	<!-- 使用OAuth认证服务器用户，用于用户给客户端授权处理，这里我们不需要 -->
+<!-- 	<beans:bean id="userApprovalHandler" class="com.sfpay.openapi.service.SfpayUserApprovalHandler">
+		<beans:property name="approvalStore" ref="approvalStore" />
+		<beans:property name="requestFactory" ref="requestFactory" />
+		<beans:property name="clientDetailsService" ref="clientDetailsService" />
+		<beans:property name="useApprovalStore" value="true" />
+	</beans:bean> -->
+	
+		<!-- ClientCredentialsTokenEndpointFilter配置, 该Filter将作用于Spring Security的chain 链条中 -->
+	<beans:bean id="clientCredentialsTokenEndpointFilter"  
+		class="org.springframework.security.oauth2.provider.client.ClientCredentialsTokenEndpointFilter">  
+		<beans:property name="authenticationManager" ref="oauth2AuthenticationManager"/>  
+	</beans:bean>
+	
+	<!-- Oauth2 AccessDecisionManager配置, 这儿在默认的Spring Security AccessDecisionManager的基础上添加了ScopeVoter -->
+	<beans:bean id="oauth2AccessDecisionManager" class="org.springframework.security.access.vote.UnanimousBased">  
+		<beans:constructor-arg>  
+			<beans:list>  
+				<beans:bean class="org.springframework.security.oauth2.provider.vote.ScopeVoter"/>  
+				<beans:bean class="org.springframework.security.access.vote.RoleVoter"/>  
+				<beans:bean class="org.springframework.security.access.vote.AuthenticatedVoter"/>  
+			</beans:list>  
+    	</beans:constructor-arg>  
+	</beans:bean>
+	
+
+	
+    <!-- authorization-server配置, 核心 -->
+	<!-- 不知道为什么加了这个就不能正常显示登录页面了 -->
+	<oauth2:authorization-server client-details-service-ref="clientDetailsService" token-services-ref="tokenServices">
+		<oauth2:authorization-code/>  
+		<!-- <oauth2:implicit/>   -->
+		<oauth2:refresh-token />  
+		<oauth2:client-credentials />
+		<oauth2:password/>  
+	</oauth2:authorization-server>
+	
+<!-- 	<beans:bean id="clientDetailsService"
+		class="org.springframework.security.oauth2.provider.client.JdbcClientDetailsService">
+		<beans:constructor-arg index="0" ref="dataSource" />
+	</beans:bean> -->
+	<oauth2:client-details-service id="clientDetailsService">
+		<!-- 客户端类型1：客户端认证授权 -->
+		<oauth2:client client-id="sfpayclient" resource-ids="SERVER_RESOURCE_ID"
+			authorized-grant-types="authorization_code,implicit"
+			authorities="ROLE_USER" scope="read" />
+		<!-- 客户端类型2： 客户端信任 -->
+		<oauth2:client client-id="sfpayclient-trust"
+			authorized-grant-types="password,authorization_code,refresh_token,implicit"
+			scope="read,write,trust" secret="secret" />
+	
+		<!-- 客户端类型3：客户端重定向 -->
+		<oauth2:client client-id="sfpayclient-redirect" resource-ids="SERVER_RESOURCE_ID"
+			authorized-grant-types="authorization_code,implicit" authorities="ROLE_USER"
+			scope="read,write" secret="secret"
+			redirect-uri="http://localhost:8080/client/server/redirect" />
+	</oauth2:client-details-service>
+	
+	
+	<!-- 	<oauth2:resource-server id="unityResourceServer" 
+		resource-id="unity-resource" token-services-ref="tokenServices"/>
+	<oauth2:resource-server id="mobileResourceServer" 
+		resource-id="mobile-resource" token-services-ref="tokenServices"/> -->
+	
+	<!-- 针对不同resource的http配置, 由于上面配置了两个resource, 这儿也配置两个 -->
+	<!-- 注意每一个http对应不同的resourceServer. access-decison-manager-ref对应Oauth的AccessDecisionManager  --> 
+	<!--unity http configuration-->  
+<!-- 	<http pattern="/unity/**" create-session="never" entry-point-ref="oauth2AuthenticationEntryPoint"  
+		access-decision-manager-ref="oauth2AccessDecisionManager">  
+		<anonymous enabled="false"/>  
+		<intercept-url pattern="/unity/**" access="ROLE_UNITY,SCOPE_READ"/>  
+		<custom-filter ref="unityResourceServer" before="PRE_AUTH_FILTER"/>  
+		<access-denied-handler ref="oauth2AccessDeniedHandler"/>  
+	</http>   -->
+	<!--mobile http configuration--> 
+<!-- 	<http pattern="/m/**" create-session="never" entry-point-ref="oauth2AuthenticationEntryPoint"  
+		access-decision-manager-ref="oauth2AccessDecisionManager">  
+		<anonymous enabled="false"/>  
+		<intercept-url pattern="/m/**" access="ROLE_MOBILE,SCOPE_READ"/>  
+		<custom-filter ref="mobileResourceServer" before="PRE_AUTH_FILTER"/>  
+		<access-denied-handler ref="oauth2AccessDeniedHandler"/>  
+	</http> -->
+
+	<!-- 默认的http配置,给/oauth/** 设置权限 -->
+<!--<http access-denied-page="/login/result?error=true" disable-url-rewriting="true"  
+		authentication-manager-ref="authenticationManager">  
+		<intercept-url pattern="/oauth/**" access="ROLE_USER,ROLE_UNITY,ROLE_MOBILE"/>  
+		<intercept-url pattern="/**" access="IS_AUTHENTICATED_ANONYMOUSLY"/>  
+		<form-login authentication-failure-url="/login/result?error=true" default-target-url="/login/result"  
+			login-page="/login" login-processing-url="/login/submit"/>  
+		<logout logout-success-url="/login" logout-url="/login/submit"/>  
+		<anonymous/>  
+	</http>  -->
+
+  
+    <!--    
+        通过 customUserDetailsService,Spring会自动的用户的访问级别.   
+        也可以理解成:以后我们和数据库操作就是通过customUserDetailsService来进行关联.   
+     -->  
+  <!--   <beans:bean id="customUserDetailsService" class="org.liukai.tutorial.service.CustomUserDetailsService"/>   -->
+       
+</beans:beans>
