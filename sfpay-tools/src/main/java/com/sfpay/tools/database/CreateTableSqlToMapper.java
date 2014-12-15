@@ -278,14 +278,14 @@ public class CreateTableSqlToMapper {
 			// 非主键才能Set
 			if(!mapperData.isPrimaryKey()) {
 				if(mapperData.getJdbcType().contains("CHAR")) {
-					update.append(String.format("\t\t\t<if test=\"%s != null and %s != ''\">%s = #{%s},</if>" + SEPARATOR,
+					update.append(String.format("\t\t\t<if test=\"%s != null and %s != ''\">%s = #{%s,jdbcType=%s},</if>" + SEPARATOR,
 							new Object[] { mapperData.getFieldName(), mapperData.getFieldName(), mapperData.getSqlName(),
-							mapperData.getFieldName()}));
+							mapperData.getFieldName(), mapperData.getJdbcType()}));
 					
 				} else {
-					update.append(String.format("\t\t\t<if test=\"%s != null\">%s = #{%s},</if>" + SEPARATOR,
+					update.append(String.format("\t\t\t<if test=\"%s != null\">%s = #{%s,jdbcType=%s},</if>" + SEPARATOR,
 							new Object[] { mapperData.getFieldName(), mapperData.getSqlName(),
-							mapperData.getFieldName()}));
+							mapperData.getFieldName(), mapperData.getJdbcType()}));
 				}
 			}
 		}
