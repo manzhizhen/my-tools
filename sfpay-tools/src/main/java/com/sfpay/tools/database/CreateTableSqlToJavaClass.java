@@ -44,7 +44,7 @@ public class CreateTableSqlToJavaClass {
 	
 	public static void main(String[] args) {
 		// 这里是直接引用项目中的createsql.txt，当然你也可以引用其他地方的
-		printJavaClass("src/main/resources/create_table_sql.txt");
+		printJavaClass("src/main/resources/create_table_sql1.txt");
 		// SetGet方法就交给eclipse自动生成咯！
 	}
 	
@@ -84,6 +84,11 @@ public class CreateTableSqlToJavaClass {
 				
 				line = line.trim().toUpperCase();
 				List<String> strList = Arrays.asList(line.split("\\s+"));
+				
+				// 过滤掉注解
+				if(strList.get(0).trim().startsWith("--")) {
+					continue ;
+				}
 				
 				// 包含这两个关键字就是我们要找的建表语句了
 				if(!find && strList.contains("CREATE") && strList.contains("TABLE")) {
@@ -241,7 +246,7 @@ public class CreateTableSqlToJavaClass {
 		
 		type = type.trim().toUpperCase();
 		
-		if(type.contains("CHAR")) {
+		if(type.contains("CHAR") || type.contains("CLOB")) {
 			return "String";
 			
 		} else if(type.contains("DATE") || type.contains("TIMESTAMP")) {
@@ -272,6 +277,8 @@ public class CreateTableSqlToJavaClass {
 		} else if(type.contains("BINARY_DOUBLE")) {
 			return "Double";
 			
+		} else if(type.contains("BLOB")) {
+			return "byte[]";
 		} else {
 			System.out.println("未知类型,getClazzFieldTypeName转化失败:" + type);
 		}
