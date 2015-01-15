@@ -1,0 +1,56 @@
+CREATE TABLE RE_QR_CODE_REF 
+(
+   ID                   NUMBER(16)           NOT NULL,
+   RE_BATCH_NO          VARCHAR2(30)         NOT NULL,
+   RE_BUSINESS_NO       VARCHAR2(30)         NOT NULL,
+   CARD_SERIAL          VARCHAR2(30)         NOT NULL,
+   RE_LINK              VARCHAR2(500)        NOT NULL,
+   AMOUNT               NUMBER(16)           NOT NULL,
+   CREATE_TIME          DATE                 NOT NULL,
+   LAST_SCAN_TIME       DATE,
+   REMARK               VARCHAR2(100),
+   CONSTRAINT PK_RE_QR_CODE_REF PRIMARY KEY (ID),
+   CONSTRAINT AK_KEY_2_RE_QR_CO UNIQUE (CARD_SERIAL)
+);
+
+COMMENT ON TABLE RE_QR_CODE_REF IS
+'总裁红包二维码映射表，目前只应用在DICK发红包场景';
+
+COMMENT ON COLUMN RE_QR_CODE_REF.ID IS
+'ID';
+
+COMMENT ON COLUMN RE_QR_CODE_REF.RE_BUSINESS_NO IS
+'红包业务流水号';
+
+COMMENT ON COLUMN RE_QR_CODE_REF.CARD_SERIAL IS
+'卡片序号，每张卡片上面印刷有这个批次下唯一的序号，并用于红包明细表里的红包业务流水号
+规则：
+1.DICK红包卡片序号按照上一期红包明细业务流水号生成规则一样；
+2.春节利是红包卡片序号的需包含公司代码和红包金额且尾数为8。';
+
+COMMENT ON COLUMN RE_QR_CODE_REF.AMOUNT IS
+'小红包金额，根据批次信息计算得出（定额）';
+
+COMMENT ON COLUMN RE_QR_CODE_REF.CREATE_TIME IS
+'创建时间';
+
+COMMENT ON COLUMN RE_QR_CODE_REF.LAST_SCAN_TIME IS
+'最后扫描时间';
+
+COMMENT ON COLUMN RE_QR_CODE_REF.REMARK IS
+'备注';
+
+/*==============================================================*/
+/* Index: IDX_RE_BATCH_NO                                       */
+/*==============================================================*/
+CREATE INDEX IDX_RE_BATCH_NO ON RE_QR_CODE_REF (
+   RE_BATCH_NO ASC,
+   RE_BUSINESS_NO ASC
+);
+
+/*==============================================================*/
+/* Index: IDX_CARD_SERIAL                                       */
+/*==============================================================*/
+CREATE INDEX IDX_CARD_SERIAL ON RE_QR_CODE_REF (
+   CARD_SERIAL ASC
+);
