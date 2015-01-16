@@ -40,7 +40,7 @@ public class CreateTableSqlToMapper {
 	
 	public static void main(String[] args) {
 		// 这里是直接引用项目中的createsql.txt，当然你也可以引用其他地方的
-		printMapperXml("src/main/resources/create_table_sql.txt");
+		printMapperXml("src/main/resources/create_table_sql2.txt");
 	}
 	
 	/**
@@ -298,7 +298,11 @@ public class CreateTableSqlToMapper {
 			}
 		}
 		// 除去多余的" and "
-		update.replace(update.length() - 5, update.length(), "");
+		if(update.toString().endsWith(" and ")) {
+			update.replace(update.length() - 5, update.length(), "");
+		} else if(update.toString().endsWith("where ")) {
+			update.replace(update.length() - 6, update.length(), "");
+		}
 		update.append(SEPARATOR);
 		update.append("\t</update>" + SEPARATOR);
 		
@@ -360,12 +364,12 @@ public class CreateTableSqlToMapper {
 		for(MapperData mapperData: mapperDataList) {
 			if(!mapperData.isPrimaryKey()) {
 				if(mapperData.getJdbcType().contains("CHAR")) {
-					select.append(String.format("\t\t\t<if test=\"%s != null and %s != ''\">and %s = #{%s},</if>" + SEPARATOR,
+					select.append(String.format("\t\t\t<if test=\"%s != null and %s != ''\">and %s = #{%s}</if>" + SEPARATOR,
 							new Object[] { mapperData.getFieldName(), mapperData.getFieldName(), mapperData.getSqlName(),
 							mapperData.getFieldName()}));
 					
 				} else {
-					select.append(String.format("\t\t\t<if test=\"%s != null\">and %s = #{%s},</if>" + SEPARATOR,
+					select.append(String.format("\t\t\t<if test=\"%s != null\">and %s = #{%s}</if>" + SEPARATOR,
 							new Object[] { mapperData.getFieldName(), mapperData.getSqlName(),
 							mapperData.getFieldName()}));
 				}
