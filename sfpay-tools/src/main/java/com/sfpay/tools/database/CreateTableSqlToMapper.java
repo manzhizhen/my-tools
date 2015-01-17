@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -28,19 +29,31 @@ import com.sfpay.tools.util.StringUtils;
  *       我们这个直接在控制台输出，你可以将需要的文本拷贝到你自己的项目中来增加开发效率。
  *     3.源代码就一个java文件，可以自己修改或新增符合自己风格的文本输出。
  * 
+ * SQL语句限制:
+ * 1.本类只解析txt文件中的CREATE TABLE语句。
+ * 2.CREATE TABLE语句中字段的默认值不应该包含字符','。
+ * 3.单引号中的内容如果写在多行，则也不应该有以分号结尾的行，否则会导致解析失败。
+ * 4.为了处理方便，会将所有语句字母变成大写后再处理，所以建议SQL语句中的默认值采用大写
+ * 5.字段类型如果带长度则不应该中间夹着空格，如不要16后面带空格：VARCHAR(16 )
+ * 
  * @author 625288 易振强 2014-11-12
  */
 public class CreateTableSqlToMapper {
 	private static final String SEPARATOR = System.getProperty("line.separator");
+	// 需将所有SQL语句的单引号（默认值或备注）中的东西先提取出来
+	private static final String SINGLE_QUOTES_REG = "'[^']*'";
+	// 单引号内容替换后的标记
+	private static final String SINGLE_QUOTES_FLAG = "'#'";
+	// 创建Table表格正则
+	private static final String TABLE_REG = "\\s*CREATE\\s+TABLE\\s+(\\w+)\\s*\\((.*)";
 	// 创建主键语句的正则
-	private static final String CONSTRAINT_PRIMARY_KEY = "\\s*CONSTRAINT\\s+\\S+\\s+PRIMARY\\s+KEY.*\\((\\S+)\\).*";
+	private static final String CONSTRAINT_PRIMARY_KEY_REG = "\\s*CONSTRAINT\\s+\\S+\\s+PRIMARY\\s+KEY.*\\((\\S+)\\).*";
 	// 排版时换行字符数
 	private static final int CHAR_SEPARATOR_NUM = 90;
 	
 	
 	public static void main(String[] args) {
-		// 这里是直接引用项目中的createsql.txt，当然你也可以引用其他地方的
-		printMapperXml("src/main/resources/create_table_sql2.txt");
+		printMapperXml("src/main/resources/create_table_sql.txt");
 	}
 	
 	/**
@@ -59,59 +72,92 @@ public class CreateTableSqlToMapper {
 			reader = new BufferedReader(new InputStreamReader(
 					new FileInputStream(createTableSqlFile)));
 
+			// 先读取整个SQL文件
 			String line = null;
-			String tableName = null;
-			
-			boolean find = false;		// 是否找到了建表语句
-			List<MapperData> mapperDataList = new ArrayList<MapperData>();
-			Pattern primaryKeyPattern = Pattern.compile(CONSTRAINT_PRIMARY_KEY);			
-			Matcher primaryKeyMatcher = null;	// 主键匹配器
-			// 解析建表语句
-			while (true) {
+			StringBuilder sqlBuilder = new StringBuilder();
+			while(true) {
 				line = reader.readLine();
-				if (line == null) {
-					break;
-				}
-
-				line = line.trim().toUpperCase();
-				List<String> strList = Arrays.asList(line.split("\\s+"));
-
-				if (!find && strList.contains("CREATE") && strList.contains("TABLE")) {
-					tableName = strList.get(2).toUpperCase();
-					find = true;
-					continue;
-				}
-				
-				primaryKeyMatcher = primaryKeyPattern.matcher(line);
-				// 在 CREATE TABLE 语句下面找建字段的语句
-				if (find && strList.size() >= 2 && !primaryKeyMatcher.matches()) {
-					mapperDataList.add(new MapperData(strList.get(0), CreateTableSqlToJavaClass.
-							getClazzFieldName(strList.get(0)), getJdbcType(strList.get(1))));
-				}
-				
-				// 在 CREATE TABLE 语句下面找建主键的语句
-				if(find && primaryKeyMatcher.matches()) {
-					String primaryKeys = primaryKeyMatcher.group(1);
-					String[] primaryKeyArray = primaryKeys.split(",");
-					List<String> primaryKeyList = new ArrayList<String>();
-					for(String primaryKey : primaryKeyArray) {
-						primaryKeyList.add(primaryKey.trim());
-					}
-					
-					for(MapperData mapperData : mapperDataList) {
-						if(primaryKeyList.contains(mapperData.getSqlName())) {
-							mapperData.setPrimaryKey(true);
-						}
-					}
-				}
-
-				// ); 一般是建表语句的结束符
-				if(line.trim().matches("\\).*;")) {
+				if(line == null) {
 					break ;
-				} else if(line.trim().equals(")")) {
-					line = line.trim() + reader.readLine();
-					if(line.trim().matches("\\).*;")) {
-						break;
+				}
+				
+				if(StringUtils.isBlank(line)) {
+					continue ;
+				}
+				
+				line = line.trim();
+				
+				if(line.startsWith("--") || line.startsWith("/*")) 
+					continue;
+				
+				sqlBuilder.append(line.trim() + " ");
+			}
+			
+			// 将引号中的内容提取出来（默认值或备注）
+			List<String> quotesContextList = new LinkedList<String>();
+			String totalSql = sqlBuilder.toString().trim();
+			int index = 0;
+			while(true) {
+				int start = totalSql.indexOf('\'', index);
+				if(start < 0) {
+					break ;
+				}
+				int end = totalSql.indexOf('\'', start + 1);
+				if(end < 0) 
+					throw new IllegalStateException("我靠，这SQL语句的单引号怎么是单数！？");
+				
+				quotesContextList.add(totalSql.substring(start + 1, end));
+				
+				index = end + 1;
+			}
+			
+			// 将单引号中内容替换，以免里面内容干扰SQL解析
+			totalSql = totalSql.replaceAll(SINGLE_QUOTES_REG, SINGLE_QUOTES_FLAG);
+			// 为了分析简单，全大写
+			totalSql = totalSql.toUpperCase();
+			// 以分号结束的SQL语句
+			List<String> sqls = Arrays.asList(totalSql.split(";"));
+			
+			// 表名
+			String tableName = null;
+			List<MapperData> mapperDataList = new ArrayList<MapperData>();
+			for(String sql : sqls) {
+				if(sql.matches(TABLE_REG)) {
+					Pattern pattern = Pattern.compile(TABLE_REG);
+					Matcher matcher = pattern.matcher(sql);
+					matcher.matches();
+					// 表名
+					tableName = matcher.group(1).trim();
+					// 建表后面的语句
+					String columnsSql = matcher.group(2).trim();
+					List<String> columnSql = Arrays.asList(columnsSql.split(","));
+					for(String column : columnSql) {
+						column = column.trim();
+						
+						String[] strList = column.split("\\s+");
+						// 说明是建字段的语句
+						if(!strList[0].equals("CONSTRAINT")) {
+							mapperDataList.add(new MapperData(strList[0], CreateTableSqlToJavaClass.
+									getClazzFieldName(strList[0]), getJdbcType(strList[1])));
+							
+						// 如果是建主键语句
+						} else if(column.matches(CONSTRAINT_PRIMARY_KEY_REG)) {
+							Pattern primaryKeyPattern = Pattern.compile(CONSTRAINT_PRIMARY_KEY_REG);
+							Matcher primaryKeyMatcher = primaryKeyPattern.matcher(column);
+							primaryKeyMatcher.matches();
+							String primaryKeys = primaryKeyMatcher.group(1);
+							String[] primaryKeyArray = primaryKeys.split(",");
+							List<String> primaryKeyList = new ArrayList<String>();
+							for(String primaryKey : primaryKeyArray) {
+								primaryKeyList.add(primaryKey.trim());
+							}
+							
+							for(MapperData mapperData : mapperDataList) {
+								if(primaryKeyList.contains(mapperData.getSqlName())) {
+									mapperData.setPrimaryKey(true);
+								}
+							}
+						}
 					}
 				}
 			}
@@ -508,4 +554,5 @@ public class CreateTableSqlToMapper {
 		
 		return select.toString();
 	}
+	
 }

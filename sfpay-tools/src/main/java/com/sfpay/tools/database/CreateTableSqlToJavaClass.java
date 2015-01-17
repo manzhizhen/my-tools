@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -37,14 +38,20 @@ import com.sfpay.tools.util.StringUtils;
  * version 1.0.1
  */
 public class CreateTableSqlToJavaClass {
+	// 需将所有SQL语句的单引号（默认值或备注）中的东西先提取出来
+	private static final String SINGLE_QUOTES_REG = "'[^']*'";
+	// 单引号内容替换后的标记
+	private static final String SINGLE_QUOTES_FLAG = "'#'";
+	// 创建Table表格正则
+	private static final String TABLE_REG = "\\s*CREATE\\s+TABLE\\s+(\\w+)\\s*\\((.*)";
 	// COLUMN COMMENT语句的正则
-	private static final String COLUMN_COMMENT_PATTERN = "\\s*COMMENT\\s+ON\\s+COLUMN\\s+(\\S+)\\s+IS\\s+'(.*)'\\s*;";
+	private static final String COLUMN_COMMENT_PATTERN = "\\s*COMMENT\\s+ON\\s+COLUMN\\s+(\\S+)\\s+IS\\s+'(.*)'\\s*";
 	// TABLE COMMENT语句的正则
-	private static final String TABLE_COMMENT_PATTERN = "\\s*COMMENT\\s+ON\\s+TABLE\\s+(\\S+)\\s+IS\\s+'(.*)'\\s*;";
+	private static final String TABLE_COMMENT_PATTERN = "\\s*COMMENT\\s+ON\\s+TABLE\\s+(\\S+)\\s+IS\\s+'(.*)'\\s*";
 	
 	public static void main(String[] args) {
 		// 这里是直接引用项目中的createsql.txt，当然你也可以引用其他地方的
-		printJavaClass("src/main/resources/create_table_sql1.txt");
+		printJavaClass("src/main/resources/create_table_sql.txt");
 		// SetGet方法就交给eclipse自动生成咯！
 	}
 	
@@ -64,82 +71,9 @@ public class CreateTableSqlToJavaClass {
 			reader = new BufferedReader(new InputStreamReader(
 					new FileInputStream(createTableSqlFile)));
 			
+			// 先读取整个SQL文件
 			String line = null;
-			StringBuilder clazzComment = new StringBuilder();	// 类备注
-			String tableName = null;	// 表名
-			String clazzStart = null;	// 类的开头
-			String clazzEnd = "}";		// 类的结尾
-			StringBuilder clazzStr = null;
-			boolean find = false;		// 是否找到了建表语句
-			// 为了将建表的comment作为对应Java类属性的注解，我们需要先将表字段的解析结果放入Map中
-			Map<String, String> tableMap = new LinkedHashMap<String, String>();
-			String separator = System.getProperty("line.separator");
-			
-			// 开始解析create table 建表语句
-			while(true) {
-				line = reader.readLine();
-				if(line == null) {
-					break ;
-				}
-				
-				line = line.trim().toUpperCase();
-				List<String> strList = Arrays.asList(line.split("\\s+"));
-				
-				// 过滤掉注解
-				if(strList.get(0).trim().startsWith("--")) {
-					continue ;
-				}
-				
-				// 包含这两个关键字就是我们要找的建表语句了
-				if(!find && strList.contains("CREATE") && strList.contains("TABLE")) {
-					clazzStr = new StringBuilder();
-					clazzStr.append("public class ");
-					clazzStr.append(getClazzName(strList.get(2)));	// 将表名转换成类名
-					clazzStr.append(" {");
-					clazzStr.append(separator);
-					
-					tableName = strList.get(2);
-					clazzStart = clazzStr.toString();
-					
-					find = true;
-					continue ;
-				}
-				
-				// 在 CREATE TABLE 语句下面找建字段的语句
-				if(find && strList.size() >= 2 && !strList.contains("CONSTRAINT")){
-					clazzStr = new StringBuilder();
-					clazzStr.append("\tprivate ");
-					// 如果类型结尾有逗号，则去掉
-					String type = strList.get(1);
-					type = type.endsWith(",") ? type.substring(0, type.length() - 1) : type;
-					clazzStr.append(getClazzFieldTypeName(type));	// 将表字段类型转换成Java类型
-					clazzStr.append(" ");
-					clazzStr.append(getClazzFieldName(strList.get(0)));		// 将表字段名称转换成Java类属性名称
-					clazzStr.append(";");
-					clazzStr.append(separator);
-					
-					tableMap.put(strList.get(0), clazzStr.toString());
-				} 
-				
-				// ); 一般是建表语句的结束符
-				if(line.trim().matches("\\).*;")) {
-					break ;
-				} else if(line.trim().equals(")")) {
-					line = line.trim() + reader.readLine();
-					if(line.trim().matches("\\).*;")) {
-						break;
-					}
-				}
-			}
-			
-			// 一般建表语句下面跟的是建备注comment的语句
-			
-			// 将备注解析到该Map中，key为字段名称，value为备注的描述
-			Map<String, String> commentMap = new LinkedHashMap<String, String>();
-			Pattern columnPattern = Pattern.compile(COLUMN_COMMENT_PATTERN);
-			Pattern tablePattern = Pattern.compile(TABLE_COMMENT_PATTERN);			
-			Matcher columnMatcher = null;	// 列备注匹配器
-			Matcher tableMatcher = null;	// 表备注匹配器
+			StringBuilder sqlBuilder = new StringBuilder();
 			while(true) {
 				line = reader.readLine();
 				if(line == null) {
@@ -150,35 +84,121 @@ public class CreateTableSqlToJavaClass {
 					continue ;
 				}
 				
-				// 一条完整备注语句有可能不在一行，但肯定以;结尾
-				String temp = null;
-				while(!line.contains(";")) {
-					temp = reader.readLine();
-					if(temp == null) {
-						break ;
+				line = line.trim();
+				
+				if(line.startsWith("--") || line.startsWith("/*")) 
+					continue;
+				
+				sqlBuilder.append(line.trim() + " ");
+			}
+			
+			// 将引号中的内容提取出来（默认值或备注）
+			List<String> quotesContextList = new LinkedList<String>();
+			String totalSql = sqlBuilder.toString().trim();
+			int index = 0;
+			while(true) {
+				int start = totalSql.indexOf('\'', index);
+				if(start < 0) {
+					break ;
+				}
+				int end = totalSql.indexOf('\'', start + 1);
+				if(end < 0) 
+					throw new IllegalStateException("我靠，这SQL语句的单引号怎么是单数！？");
+				
+				quotesContextList.add(totalSql.substring(start + 1, end));
+				
+				index = end + 1;
+			}
+			
+			// 将单引号中内容替换，以免里面内容干扰SQL解析
+			totalSql = totalSql.replaceAll(SINGLE_QUOTES_REG, SINGLE_QUOTES_FLAG);
+			// 为了分析简单，全大写
+			totalSql = totalSql.toUpperCase();
+			// 以分号结束的SQL语句
+			List<String> sqls = Arrays.asList(totalSql.split(";"));
+			
+			StringBuilder clazzComment = new StringBuilder();	// 类备注
+			String tableName = null;	// 表名
+			String clazzStart = null;	// 类的开头
+			String clazzEnd = "}";		// 类的结尾
+			StringBuilder clazzStr = null;
+			
+			String separator = System.getProperty("line.separator");
+			// 为了将建表的comment作为对应Java类属性的注解，我们需要先将表字段的解析结果放入Map中
+			Pattern columnPattern = Pattern.compile(COLUMN_COMMENT_PATTERN);
+			Pattern tablePattern = Pattern.compile(TABLE_COMMENT_PATTERN);	
+			
+			Map<String, String> tableMap = new LinkedHashMap<String, String>();
+			// 将备注解析到该Map中，key为字段名称，value为备注的描述
+			Map<String, String> commentMap = new LinkedHashMap<String, String>();
+			
+			for(String sql : sqls) {
+				// 如果是建表语句
+				if(sql.matches(TABLE_REG)) {
+					Pattern pattern = Pattern.compile(TABLE_REG);
+					Matcher matcher = pattern.matcher(sql);
+					matcher.matches();
+					// 表名
+					tableName = matcher.group(1).trim();
+					
+					clazzStr = new StringBuilder();
+					clazzStr.append("public class ");
+					clazzStr.append(getClazzName(tableName));	// 将表名转换成类名
+					clazzStr.append(" {");
+					clazzStr.append(separator);
+					clazzStart = clazzStr.toString();
+					
+					// 建表后面的语句
+					String columnsSql = matcher.group(2).trim();
+					List<String> columnSql = Arrays.asList(columnsSql.split(","));
+					for(String column : columnSql) {
+						column = column.trim();
+						
+						String[] strList = column.split("\\s+");
+						// 说明是建字段的语句
+						if(!strList[0].equals("CONSTRAINT")) {
+							clazzStr = new StringBuilder();
+							clazzStr.append("\tprivate ");
+							// 如果类型结尾有逗号，则去掉
+							String type = strList[1];
+							type = type.endsWith(",") ? type.substring(0, type.length() - 1) : type;
+							clazzStr.append(getClazzFieldTypeName(type));	// 将表字段类型转换成Java类型
+							clazzStr.append(" ");
+							clazzStr.append(getClazzFieldName(strList[0]));		// 将表字段名称转换成Java类属性名称
+							clazzStr.append(";");
+							clazzStr.append(separator);
+							
+							tableMap.put(strList[0], clazzStr.toString());
+						} 
 					}
-					line = line.trim() + " " + temp.trim();
-				}
+					
+					// 去掉建表语句中的默认值（引号部分），因为默认值这东西对生成Class没什么用
+					while(sql.contains(SINGLE_QUOTES_FLAG)) {
+						// 将第一个替换成另一个字符串
+						sql = sql.replaceFirst(SINGLE_QUOTES_FLAG, "'&'");
+						quotesContextList.remove(0);
+					}
 				
-				line = line.toUpperCase();
-				columnMatcher = columnPattern.matcher(line);
-				// 如果能匹配，说明是列备注
-				if(columnMatcher.matches()) {
-					commentMap.put(columnMatcher.group(1), columnMatcher.group(2).trim());	// 列明和列备注放入map中
-					continue ;
-				}
-				
-				tableMatcher = tablePattern.matcher(line);
-				// 如果能匹配，说明是表备注
-				if(tableMatcher.matches()) {
+				// 如果是列备注语句
+				} else if(sql.matches(COLUMN_COMMENT_PATTERN)) {
+					Matcher columnMatcher = columnPattern.matcher(sql);
+					columnMatcher.matches();
+					commentMap.put(columnMatcher.group(1), quotesContextList.get(0).trim());	// 列明和列备注放入map中
+					// 用一个去掉一个，所以每次取出第一个就行了
+					quotesContextList.remove(0);
+					
+				// 如果是表备注语句
+				} else if(sql.matches(TABLE_COMMENT_PATTERN)) {
+					Matcher tableMatcher = tablePattern.matcher(sql);
+					tableMatcher.matches();
 					clazzComment.append("/**" + separator);
-					clazzComment.append(" * 类说明：" + tableMatcher.group(2) + separator);
-					clazzComment.append(" * 类描述：" + tableMatcher.group(2) + separator);
+					clazzComment.append(" * 类说明：" + quotesContextList.get(0).trim() + separator);
+					clazzComment.append(" * 类描述：" + quotesContextList.get(0).trim() + separator);
 					clazzComment.append(" * @author 顺丰攻城狮" + separator);
 					clazzComment.append(" */" + separator);
-					continue ;
+					// 用一个去掉一个，所以每次取出第一个就行了
+					quotesContextList.remove(0);
 				}
-				
 			}
 			
 			StringBuilder resultStr = new StringBuilder();
