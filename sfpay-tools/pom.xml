@@ -5,7 +5,7 @@
 	<groupId>com.sfpay</groupId>
 	<artifactId>sfpay-tools</artifactId>
 	<packaging>war</packaging>
-	<version>1.0.1</version>
+	<version>1.0.2</version>
 	
 	<properties>
 		<commons-lang3-version>3.3.2</commons-lang3-version>
