@@ -262,8 +262,8 @@ public class CreateTableSqlToMapper {
 	private static String createInsert(String tableName, List<MapperData> mapperDataList) {
 		StringBuilder insert = new StringBuilder();
 		String className = CreateTableSqlToJavaClass.getClazzName(tableName);
-		insert.append(String.format("\t<insert id=\"addExpressOrder\" parameterType=\"com.sfpay.**.%s\">" + SEPARATOR, 
-				new Object[]{className + "Map", className}));
+		insert.append(String.format("\t<insert id=\"add%s\" parameterType=\"com.sfpay.**.%s\">" + SEPARATOR, 
+				new Object[]{className, className + "Map", className}));
 		insert.append("\t\tinsert into " + tableName + SEPARATOR);
 		insert.append("\t\t\t(");
 		int charNum = 0;	// 记录字符数，用于排版换行

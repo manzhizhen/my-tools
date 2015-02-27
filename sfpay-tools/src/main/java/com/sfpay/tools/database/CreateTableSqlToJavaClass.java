@@ -51,7 +51,7 @@ public class CreateTableSqlToJavaClass {
 	
 	public static void main(String[] args) {
 		// 这里是直接引用项目中的createsql.txt，当然你也可以引用其他地方的
-		printJavaClass("src/main/resources/create_table_sql3.txt");
+		printJavaClass("src/main/resources/create_table_sql.txt");
 		// SetGet方法就交给eclipse自动生成咯！
 	}
 	
@@ -140,10 +140,7 @@ public class CreateTableSqlToJavaClass {
 					matcher.matches();
 					// 表名
 					tableName = matcher.group(1).trim();
-					if(tableName.contains(".")) {
-						tableName = tableName.substring(tableName.indexOf(".") + 1, tableName.length());
-					}
-					
+
 					clazzStr = new StringBuilder();
 					clazzStr.append("public class ");
 					clazzStr.append(getClazzName(tableName));	// 将表名转换成类名
@@ -312,6 +309,10 @@ public class CreateTableSqlToJavaClass {
 	private static String getClazzStr(String sqlName) {
 		if(StringUtils.isBlank(sqlName)) {
 			return "";
+		}
+		
+		if(sqlName.contains(".")) {
+			sqlName = sqlName.substring(sqlName.lastIndexOf(".") + 1, sqlName.length());
 		}
 		
 		if(!sqlName.contains("_")) {
