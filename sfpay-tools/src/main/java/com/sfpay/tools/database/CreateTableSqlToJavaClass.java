@@ -43,7 +43,7 @@ public class CreateTableSqlToJavaClass {
 	// 单引号内容替换后的标记
 	private static final String SINGLE_QUOTES_FLAG = "'#'";
 	// 创建Table表格正则
-	private static final String TABLE_REG = "\\s*CREATE\\s+TABLE\\s+(\\w+)\\s*\\((.*)";
+	private static final String TABLE_REG = "\\s*CREATE\\s+TABLE\\s+([\\w\\.]+)\\s*\\((.*)";
 	// COLUMN COMMENT语句的正则
 	private static final String COLUMN_COMMENT_PATTERN = "\\s*COMMENT\\s+ON\\s+COLUMN\\s+(\\S+)\\s+IS\\s+'(.*)'\\s*";
 	// TABLE COMMENT语句的正则
@@ -51,7 +51,7 @@ public class CreateTableSqlToJavaClass {
 	
 	public static void main(String[] args) {
 		// 这里是直接引用项目中的createsql.txt，当然你也可以引用其他地方的
-		printJavaClass("src/main/resources/create_table_sql.txt");
+		printJavaClass("src/main/resources/create_table_sql3.txt");
 		// SetGet方法就交给eclipse自动生成咯！
 	}
 	
@@ -140,6 +140,9 @@ public class CreateTableSqlToJavaClass {
 					matcher.matches();
 					// 表名
 					tableName = matcher.group(1).trim();
+					if(tableName.contains(".")) {
+						tableName = tableName.substring(tableName.indexOf(".") + 1, tableName.length());
+					}
 					
 					clazzStr = new StringBuilder();
 					clazzStr.append("public class ");

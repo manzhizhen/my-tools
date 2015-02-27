@@ -45,7 +45,7 @@ public class CreateTableSqlToMapper {
 	// 单引号内容替换后的标记
 	private static final String SINGLE_QUOTES_FLAG = "'#'";
 	// 创建Table表格正则
-	private static final String TABLE_REG = "\\s*CREATE\\s+TABLE\\s+(\\w+)\\s*\\((.*)";
+	private static final String TABLE_REG = "\\s*CREATE\\s+TABLE\\s+([\\w\\.]+)\\s*\\((.*)";
 	// 创建主键语句的正则
 	private static final String CONSTRAINT_PRIMARY_KEY_REG = "\\s*CONSTRAINT\\s+\\S+\\s+PRIMARY\\s+KEY.*\\((\\S+)\\).*";
 	// 排版时换行字符数
@@ -128,6 +128,10 @@ public class CreateTableSqlToMapper {
 					matcher.matches();
 					// 表名
 					tableName = matcher.group(1).trim();
+					if(tableName.contains(".")) {
+						tableName = tableName.substring(tableName.indexOf(".") + 1, tableName.length());
+					}
+					
 					// 建表后面的语句
 					String columnsSql = matcher.group(2).trim();
 					List<String> columnSql = Arrays.asList(columnsSql.split(","));
