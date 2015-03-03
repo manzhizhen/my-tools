@@ -168,7 +168,13 @@ public class CreateTableSqlToMapper {
 			
 			System.out.println("文件名：" + CreateTableSqlToJavaClass.getClazzName(tableName) + 
 					"Mapper.xml" + SEPARATOR);
-
+			
+			// 输出xml文件开头
+			System.out.println("<?xml version=\"1.0\" encoding=\"UTF-8\"?>" + System.getProperty("line.separator") +
+					"<!DOCTYPE mapper PUBLIC \"-//mybatis.org//DTD Mapper 3.0//EN\" \"http://mybatis.org/dtd/mybatis-3-mapper.dtd\">" +
+					System.getProperty("line.separator"));
+			System.out.println(String.format("<mapper namespace=\"com.sfpay.**.dao.I%sDao\">", 
+					CreateTableSqlToJavaClass.getClazzName(tableName)));
 			// 输出 resultMap 节点内容
 			System.out.println(createResultMap(tableName, mapperDataList));
 			// 输出insert
@@ -183,6 +189,9 @@ public class CreateTableSqlToMapper {
 			System.out.println(createSelectByPage(tableName, mapperDataList));
 			// 输出排序+分页select
 			System.out.println(createSelectByOrderAndPage(tableName, mapperDataList));
+			
+			// 输出xml文件结尾
+			System.out.println("</mapper>");
 			
 		} catch (FileNotFoundException e) {
 			e.printStackTrace();
