@@ -263,7 +263,7 @@ public class CreateTableSqlToMapper {
 		StringBuilder insert = new StringBuilder();
 		String className = CreateTableSqlToJavaClass.getClazzName(tableName);
 		insert.append(String.format("\t<insert id=\"add%s\" parameterType=\"com.sfpay.**.%s\">" + SEPARATOR, 
-				new Object[]{className, className + "Map", className}));
+				new Object[]{className, className, className}));
 		insert.append("\t\tinsert into " + tableName + SEPARATOR);
 		insert.append("\t\t\t(");
 		int charNum = 0;	// 记录字符数，用于排版换行
